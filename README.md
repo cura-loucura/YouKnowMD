@@ -5,21 +5,25 @@ Upload structured markdown files with categories, manage knowledge areas, and ch
 
 📋 Expected Markdown Format
 Your markdown files should follow this structure:
+filename: classical_music.md
+
+domain: classical_music
 
 ## Areas:
 - Classical Music
-- Japanese Crafts
-- Great civilizations
+- Chamber Music
 
 ## Tags:
 - bach
-- ryoba
-- pyramids
+- beethoven
+- quartet
 
 ## Notes:
 
-### 2025-02-17 - Quote
+### 2025-02-17 - Quote -  KnowBit
 **Category:** Chamber Music
-**Content:** Most difficult string quartet compositions by Beethoven for Viola are as follows....
-**Tags:** beethoven, viola, string-quartet
+**Content:** According to a famous viola player, the most difficult string quartet compositions by Beethoven for Viola are as follows....
+**Tags:** beethoven, viola, string-quartet, Famous-Viola-Player-Name
+
+
 
