@@ -5,6 +5,8 @@ Upload structured markdown files with categories, manage knowledge areas, and ch
 
 📋 Expected Markdown Format
 Your markdown files should follow this structure:
+
+
 filename: classical_music.md
 
 domain: classical_music
