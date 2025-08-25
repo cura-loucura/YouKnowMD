@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Note System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .hidden { display: none !important; }
+        .flex { display: flex !important; }
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Main Container -->
+    <div class="max-w-6xl mx-auto p-6">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">AI-Powered Note System (V1.5)</h1>
+                <p class="text-gray-600 mt-2">
+                    Upload structured markdown files with categories, manage knowledge areas, and organize your notes.
+                </p>
+            </div>
+            <div id="feedback" class="px-4 py-2 bg-green-100 text-green-800 rounded-lg hidden"></div>
+        </div>
+
+        <!-- Quick Start Guide -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 class="text-lg font-semibold text-blue-800 mb-2">📋 Expected Markdown Format</h3>
+            <div class="text-sm text-blue-700">
+                <p class="mb-2">Your markdown files should follow this structure:</p>
+                <div class="bg-blue-100 p-3 rounded text-xs overflow-x-auto">
+                    <code class="whitespace-pre-wrap">## Areas:
+- Vegan Cheese Knowledge
+- Cooking Techniques
+
+## Tags:
+- fermentation
+- temperature-control
+- recipes
+
+## Notes:
+
+### 2025-02-17 - Quote
+**Category:** Technical Parameters
+**Content:** Pasteurization: 72°C for 15 seconds minimum, optimal 75°C for plant proteins
+**Tags:** temperature, pH-control, fermentation
+
+### 2025-02-17 - Idea
+**Category:** Recipe Development
+**Content:** Experiment with cashew-almond blend for better texture
+**Tags:** cashews, almonds, texture</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inbox Management -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Inbox Management (notes.md)</h2>
+            <div class="flex flex-wrap gap-4 mb-4">
+                <input type="file" accept=".md" id="inboxFileInput" class="hidden">
+                <button onclick="document.getElementById('inboxFileInput').click()" 
+                        class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    <span>📤</span> Upload notes.md
+                </button>
+                
+                <button onclick="createNewInbox()" 
+                        class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+                    <span>➕</span> New notes.md
+                </button>
+                
+                <button onclick="downloadInbox()" 
+                        class="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600">
+                    <span>💾</span> Download<span id="inboxChanges"></span>
+                </button>
+
+                <button onclick="processInbox()" id="processBtn"
+                        class="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50">
+                    Process Inbox
+                </button>
+            </div>
+            
+            <div id="inboxInfo" class="text-sm text-gray-600 hidden"></div>
+        </div>
+
+        <!-- Area File Management -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Area File Management</h2>
+            
+            <div class="flex flex-wrap gap-4 mb-4">
+                <input type="file" accept=".md" multiple id="areaFilesInput" class="hidden">
+                <button onclick="document.getElementById('areaFilesInput').click()" 
+                        class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    <span>📤</span> Upload Area Files
+                </button>
+                
+                <button onclick="showNewAreaModal()" 
+                        class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+                    <span>➕</span> New Area File
+                </button>
+            </div>
+
+            <div id="areaFilesTable" class="hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b">
+                                <th class="text-left py-2">Area Name</th>
+                                <th class="text-left py-2">Items</th>
+                                <th class="text-left py-2">Last Modified</th>
+                                <th class="text-left py-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="areaFilesTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation & Viewing -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Navigation & Viewing</h2>
+            
+            <div class="flex flex-wrap gap-4 mb-4">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">Select Area:</label>
+                    <select id="areaSelect" onchange="updateSelectedArea()" class="px-3 py-2 border rounded">
+                        <option value="inbox">Inbox (0)</option>
+                    </select>
+                </div>
+
+                <button onclick="viewItems()" class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    <span>👁️</span> View Items
+                </button>
+            </div>
+
+            <div class="flex gap-2">
+                <input type="text" id="searchInput" placeholder="Search content, tags, type..." 
+                       oninput="handleSearch()" class="flex-1 px-4 py-2 border rounded">
+                <button onclick="performSearch()" class="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                    <span>🔍</span> Search
+                </button>
+            </div>
+        </div>
+
+        <!-- Current View Display -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 id="viewTitle" class="text-xl font-semibold mb-4">Inbox Notes (0 items)</h2>
+
+            <!-- Add Item Form -->
+            <div id="addItemForm" class="border-b pb-6 mb-6">
+                <h3 class="text-lg font-semibold mb-4">Add New Item</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Type</label>
+                        <select id="itemType" onchange="handleTypeChange()" class="w-full px-3 py-2 border rounded">
+                        </select>
+                    </div>
+
+                    <div id="targetAreaDiv" class="hidden">
+                        <label class="block text-sm font-medium mb-1">Target Area</label>
+                        <select id="targetArea" class="w-full px-3 py-2 border rounded">
+                            <option value="">Select target area...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Category</label>
+                        <input type="text" id="itemCategory" list="categories" placeholder="Enter category (optional)..." 
+                               class="w-full px-3 py-2 border rounded">
+                        <datalist id="categories">
+                        </datalist>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Tags</label>
+                        <input type="text" id="itemTags" placeholder="Enter tags separated by commas" 
+                               class="w-full px-3 py-2 border rounded">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium mb-1">Content</label>
+                        <textarea id="itemContent" class="w-full px-3 py-2 border rounded h-32" 
+                                  placeholder="Enter content..."></textarea>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <button onclick="addItem()" id="addItemBtn"
+                                class="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
+                            Add to Inbox
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items List -->
+            <div id="itemsList" class="space-y-4">
+                <div class="text-center py-8 text-gray-500">
+                    No items yet. Add your first item above!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-lg font-semibold">Edit Item</h3>
+                <button onclick="closeEditModal()" class="p-1 text-gray-500 hover:text-gray-700">
+                    <span class="text-xl">×</span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Type</label>
+                            <select id="editType" class="w-full px-3 py-2 border rounded">
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Area</label>
+                            <select id="editArea" class="w-full px-3 py-2 border rounded">
+                                <option value="inbox">Inbox</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Content</label>
+                        <textarea id="editContent" class="w-full px-3 py-2 border rounded h-32"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Category</label>
+                        <input type="text" id="editCategory" list="editCategories" placeholder="Enter category (optional)..." 
+                               class="w-full px-3 py-2 border rounded">
+                        <datalist id="editCategories">
+                        </datalist>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Tags</label>
+                        <input type="text" id="editTags" class="w-full px-3 py-2 border rounded">
+                    </div>
+
+                    <div id="editTargetAreaDiv" class="hidden">
+                        <label class="block text-sm font-medium mb-1">Target Area (for processing)</label>
+                        <select id="editTargetArea" class="w-full px-3 py-2 border rounded">
+                            <option value="">Select target area...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="saveEditedItem()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+                            Save Changes
+                        </button>
+                        <button onclick="closeEditModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Content Modal -->
+    <div id="fileModal" class="modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-96 flex flex-col mx-4">
+            <div class="flex justify-between items-center p-3 border-b flex-shrink-0">
+                <h3 id="fileModalTitle" class="text-lg font-semibold truncate mr-4"></h3>
+                <div class="flex gap-2 flex-shrink-0">
+                    <button onclick="copyFileContent()" id="copyBtn"
+                            class="flex items-center gap-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        <span>📋</span> <span id="copyBtnText">Copy</span>
+                    </button>
+                    <button onclick="closeFileModal()" class="p-1 text-gray-500 hover:text-gray-700 flex-shrink-0">
+                        <span class="text-xl">×</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 overflow-auto p-3 bg-gray-50">
+                <div id="fileModalContent" class="whitespace-pre-wrap text-xs font-mono bg-white p-3 rounded border leading-relaxed">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Area Modal -->
+    <div id="newAreaModal" class="modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-lg font-semibold">Create New Area</h3>
+                <button onclick="closeNewAreaModal()" class="p-1 text-gray-500 hover:text-gray-700">
+                    <span class="text-xl">×</span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Area Title</label>
+                        <input id="newAreaTitle" type="text" placeholder="Enter area title..." 
+                               class="w-full px-3 py-2 border rounded">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Description</label>
+                        <textarea id="newAreaDescription" placeholder="Brief description of this area..." 
+                                  class="w-full px-3 py-2 border rounded h-20"></textarea>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="createNewArea()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                            Create Area
+                        </button>
+                        <button onclick="closeNewAreaModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 id="confirmTitle" class="text-lg font-semibold"></h3>
+                <button onclick="closeConfirmModal()" class="p-1 text-gray-500 hover:text-gray-700">
+                    <span class="text-xl">×</span>
+                </button>
+            </div>
+            <div class="p-4">
+                <p id="confirmMessage" class="text-gray-700 mb-4"></p>
+                <p id="confirmWarning" class="text-red-600 font-medium mb-4 hidden"></p>
+                
+                <div class="flex gap-2">
+                    <button id="confirmOkBtn" onclick="confirmAction()" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+                        Confirm
+                    </button>
+                    <button onclick="closeConfirmModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /*
+         * =====================================================================
+         * AI-POWERED NOTE-TAKING SYSTEM - STANDALONE HTML VERSION (V1.5)
+         * =====================================================================
+         * 
+         * ARCHITECTURAL DIFFERENCES FROM REACT VERSION (remixed-3c8705ff.tsx):
+         * 
+         * These are INTENTIONAL DESIGN CHOICES, not missing features.
+         * When editing this file, preserve these architectural decisions:
+         * 
+         * 1. STATE MANAGEMENT:
+         *    - HTML: Simple global variables (appState, inboxFile, areaFiles)
+         *    - React: Hook-based state with unified modal system
+         *    → Keep simple globals for better standalone performance
+         * 
+         * 2. MODAL SYSTEM:
+         *    - HTML: Individual modals with separate show/hide functions
+         *    - React: Unified modal system with appState.modal object
+         *    → Maintain separate modals - simpler for vanilla JS
+         * 
+         * 3. FORM HANDLING:
+         *    - HTML: Direct DOM manipulation for form values
+         *    - React: Controlled components with dedicated state objects
+         *    → Keep DOM manipulation - no virtual DOM here
+         * 
+         * 4. AI FEATURES (INTENTIONALLY EXCLUDED):
+         *    - No Chat Integration (requires Claude API)
+         *    - No Auto-tag Generation (requires AI service)
+         *    → Standalone version should work offline
+         * 
+         * 5. FILE OPERATIONS:
+         *    - HTML: Full download for notes.md, copy-paste for areas
+         *    - React: View-only with copy-to-clipboard (artifact limitation)
+         *    → This is the INTENDED workflow - users have area files open
+         * 
+         * 6. ERROR HANDLING & LOGGING:
+         *    - HTML: Minimal, user-friendly error handling
+         *    - React: Comprehensive console logging for debugging
+         *    → Keep minimal - end users don't need debug logs
+         * 
+         * 7. COMPONENT UPDATES:
+         *    - HTML: Manual render function calls after state changes
+         *    - React: Automatic re-rendering via hooks
+         *    → Manual calls are necessary and correct for vanilla JS
+         * 
+         * 8. ACCESSIBILITY:
+         *    - HTML: Basic accessibility implementation
+         *    - React: Enhanced ARIA labels and semantic HTML
+         *    → Can be improved but not a blocker for functionality
+         * 
+         * 9. PROCESSING STATE:
+         *    - HTML: Simple boolean flags for UI state
+         *    - React: Dedicated state variables (processing, addingItem, etc.)
+         *    → Simple flags are sufficient for this use case
+         * 
+         * 10. TYPE SYSTEM:
+         *     - Both now use centralized ITEM_TYPES configuration
+         *     - HTML uses compatibility layer (NOTE_TEMPLATES) for legacy support
+         *     → This SHOULD be kept in sync between versions
+         * 
+         * GUIDELINES FOR FUTURE EDITS:
+         * - ✅ DO: Sync type system changes, bug fixes, core features
+         * - ✅ DO: Improve accessibility when straightforward
+         * - ❌ DON'T: Add AI features or online dependencies
+         * - ❌ DON'T: Convert to React-style state management
+         * - ❌ DON'T: Add complex logging or debugging features
+         * - ❌ DON'T: Change file download behavior for areas
+         * 
+         * This HTML version is designed to be:
+         * - Completely standalone and offline-capable
+         * - Simple and maintainable
+         * - Fast loading with minimal dependencies
+         * - Compatible with users' existing file management workflows
+         * =====================================================================
+         */
+
+        // ===== CENTRALIZED ITEM TYPE CONFIGURATION =====
+        const ITEM_TYPES = {
+            'Note': {
+                label: 'Note',
+                template: '',
+                color: 'bg-gray-100 text-gray-800'
+            },
+            'Idea': {
+                label: 'Idea',
+                template: 'Idea:\nConstraints:',
+                color: 'bg-blue-100 text-blue-800'
+            },
+            'Quote': {
+                label: 'Quote', 
+                template: '',
+                color: 'bg-purple-100 text-purple-800'
+            },
+            'Todo': {
+                label: 'Todo',
+                template: '',
+                color: 'bg-orange-100 text-orange-800'
+            },
+            'Link': {
+                label: 'Link',
+                template: 'Link:\nDescription:',
+                color: 'bg-green-100 text-green-800'
+            },
+            'Book': {
+                label: 'Book',
+                template: 'Title:\nAuthor:\nPublisher:\nYear:\nGenre:\nLanguage:\nDescription:',
+                color: 'bg-amber-100 text-amber-800'
+            },
+            'Media': {
+                label: 'Media',
+                template: 'Title:\nGenre:\nDescription:',
+                color: 'bg-pink-100 text-pink-800'
+            },
+            'Recipe': {
+                label: 'Recipe',
+                template: 'Title:\nVersion:\nIngredients:\nInstructions:\nNotes:',
+                color: 'bg-emerald-100 text-emerald-800'
+            }
+        };
+
+        // Derived arrays and functions from centralized config
+        const TYPE_KEYS = Object.keys(ITEM_TYPES);
+        const getTypeTemplate = (type) => ITEM_TYPES[type]?.template || '';
+        const getTypeColor = (type) => ITEM_TYPES[type]?.color || 'bg-gray-100 text-gray-600';
+        const getTypeLabel = (type) => ITEM_TYPES[type]?.label || type;
+
+        // Global State
+        let appState = {
+            items: [],
+            areas: {},
+            currentView: 'inbox',
+            currentArea: 'inbox',
+            selectedArea: 'inbox',
+            searchQuery: '',
+            editing: null
+        };
+
+        let inboxFile = {
+            name: '',
+            lastModified: '',
+            hasChanges: false
+        };
+
+        let areaFiles = {};
+
+        let confirmCallback = null;
+        let currentEditingId = null;
+        let fileModalContent = '';
+        let searchHighlight = false;
+
+        // Legacy NOTE_TEMPLATES for backward compatibility - now uses centralized config
+        const NOTE_TEMPLATES = Object.fromEntries(
+            Object.entries(ITEM_TYPES).map(([key, config]) => [key, config.template])
+        );
+
+        // Utility functions
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        const formatDate = (date = new Date()) => date.toISOString().split('T')[0];
+
+        const showFeedback = (message) => {
+            const feedback = document.getElementById('feedback');
+            feedback.textContent = message;
+            feedback.classList.remove('hidden');
+            setTimeout(() => {
+                feedback.classList.add('hidden');
+            }, 3000);
+        };
+
+
+        // Mark file as changed
+        const markFileChanged = (areaName) => {
+            if (areaName === 'inbox') {
+                inboxFile.hasChanges = true;
+                updateInboxInfo();
+            } else {
+                if (areaFiles[areaName]) {
+                    areaFiles[areaName].hasChanges = true;
+                    renderAreaFilesTable();
+                }
+            }
+        };
+
+        // Markdown parsing
+        const parseInboxMarkdown = (content) => {
+            const lines = content.split('\n');
+            const areas = [];
+            const tags = [];
+            const items = [];
+            
+            let currentSection = '';
+            let currentItem = null;
+            
+            for (let line of lines) {
+                line = line.trim();
+                
+                if (line.startsWith('## Areas:')) {
+                    currentSection = 'areas';
+                    continue;
+                } else if (line.startsWith('## Tags:')) {
+                    currentSection = 'tags';
+                    continue;
+                } else if (line.startsWith('## Notes:')) {
+                    currentSection = 'notes';
+                    continue;
+                }
+                
+                if (currentSection === 'areas' && line.startsWith('- ')) {
+                    areas.push(line.substring(2));
+                } else if (currentSection === 'tags' && line.startsWith('- ')) {
+                    tags.push(line.substring(2));
+                } else if (currentSection === 'notes') {
+                    if (line.startsWith('### ')) {
+                        if (currentItem) {
+                            items.push(currentItem);
+                        }
+                        currentItem = {
+                            id: generateId(),
+                            date: line.substring(4),
+                            title: line.substring(4),
+                            type: TYPE_KEYS[0] || 'Note',
+                            content: '',
+                            tags: [],
+                            area: 'inbox',
+                            created: Date.now(),
+                            lastUpdated: Date.now()
+                        };
+                    } else if (currentItem) {
+                        if (line.startsWith('**Type:** ')) {
+                            currentItem.type = line.substring(10);
+                        } else if (line.startsWith('**Category:** ')) {
+                            currentItem.category = line.substring(14).trim();
+                        } else if (line.startsWith('**Area:** ')) {
+                            currentItem.targetArea = line.substring(10);
+                        } else if (line.startsWith('**Content:** ')) {
+                            currentItem.content = line.substring(13);
+                        } else if (line.startsWith('**Tags:** ')) {
+                            const tagString = line.substring(10);
+                            currentItem.tags = tagString ? tagString.split(',').map(t => t.trim()) : [];
+                        }
+                    }
+                }
+            }
+            
+            if (currentItem) {
+                items.push(currentItem);
+            }
+            
+            return { items, areas, tags };
+        };
+
+        const parseAreaMarkdown = (content, areaName) => {
+            const lines = content.split('\n');
+            const items = [];
+            let currentItem = null;
+            let title = '';
+            let description = '';
+            let inOverview = false;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                if (line.startsWith('# ')) {
+                    title = line.substring(2);
+                } else if (line.startsWith('## Overview')) {
+                    inOverview = true;
+                    for (let j = i + 1; j < lines.length; j++) {
+                        if (lines[j].trim() && !lines[j].startsWith('##') && !lines[j].startsWith('#')) {
+                            description = lines[j].trim();
+                            break;
+                        }
+                        if (lines[j].startsWith('##')) {
+                            break;
+                        }
+                    }
+                } else if (line.startsWith('## ') && inOverview) {
+                    inOverview = false;
+                } else if (line.startsWith('### ')) {
+                    if (currentItem) {
+                        items.push(currentItem);
+                    }
+                    currentItem = {
+                        id: generateId(),
+                        title: line.substring(4),
+                        date: line.substring(4),
+                        type: TYPE_KEYS[0] || 'Note',
+                        content: '',
+                        tags: [],
+                        category: '',
+                        area: areaName,
+                        created: Date.now(),
+                        lastUpdated: Date.now()
+                    };
+                } else if (currentItem) {
+                    if (line.startsWith('**Type:** ')) {
+                        currentItem.type = line.substring(10);
+                    } else if (line.startsWith('**Category:** ')) {
+                        currentItem.category = line.substring(14).trim();
+                    } else if (line.startsWith('**Tags:** ')) {
+                        const tagString = line.substring(10);
+                        currentItem.tags = tagString ? tagString.split(',').map(t => t.trim()) : [];
+                    } else if (line.trim() && !line.startsWith('**')) {
+                        currentItem.content += (currentItem.content ? '\n' : '') + line;
+                    }
+                }
+            }
+            
+            if (currentItem) {
+                items.push(currentItem);
+            }
+            
+            return { 
+                title: title || areaName, 
+                description: description || 'Brief description of this area.', 
+                items 
+            };
+        };
+
+        // Markdown generation
+        const generateInboxMarkdown = () => {
+            const inboxItems = appState.items.filter(item => item.area === 'inbox');
+            
+            let content = 'Filename: notes.md\n## Areas:\n';
+            Object.values(appState.areas).forEach(area => {
+                content += `- ${area.title}\n`;
+            });
+            
+            content += '\n## Tags:\n';
+            const allTags = [...new Set(appState.items.flatMap(item => item.tags))];
+            allTags.forEach(tag => {
+                content += `- ${tag}\n`;
+            });
+            
+            content += '\n## Notes:\n';
+            
+            inboxItems.forEach(item => {
+                const createdDate = new Date(item.created).toISOString().split('T')[0];
+                const updatedDate = new Date(item.lastUpdated).toISOString().split('T')[0];
+                const hasBeenUpdated = createdDate !== updatedDate;
+                
+                content += `### ${item.date} - ${item.type}${hasBeenUpdated ? ` (Updated: ${updatedDate})` : ''}\n`;
+                if (item.category) content += `**Category:** ${item.category}\n`;
+                if (item.targetArea) content += `**Area:** ${item.targetArea}\n`;
+                content += `**Content:** ${item.content}\n`;
+                if (item.tags.length > 0) content += `**Tags:** ${item.tags.join(', ')}\n`;
+                content += '\n';
+            });
+            
+            return content;
+        };
+
+        const generateAreaMarkdown = (areaName, areaTitle, areaDescription) => {
+            const areaItems = appState.items.filter(item => item.area === areaName);
+            const areaInfo = appState.areas[areaName];
+            
+            const title = areaTitle || areaInfo?.title || areaName;
+            const description = areaDescription || areaInfo?.description || 'Brief description of this area.';
+            
+            // Generate filename and add it to the top
+            const filename = `${areaName}.md`;
+            let content = `Filename: ${filename}\n# ${title}\n\n## Overview\n${description}\n\n## Key Concepts\n- Concept 1\n- Concept 2\n\n## Resources\n- Resource 1\n- Resource 2\n\n## Notes\n`;
+            
+            areaItems.forEach(item => {
+                const createdDate = new Date(item.created).toISOString().split('T')[0];
+                const updatedDate = new Date(item.lastUpdated).toISOString().split('T')[0];
+                const hasBeenUpdated = createdDate !== updatedDate;
+                
+                content += `### ${item.date} - ${item.type}${hasBeenUpdated ? ` (Updated: ${updatedDate})` : ''}\n`;
+                if (item.category) content += `**Category:** ${item.category}\n`;
+                content += `${item.content}\n`;
+                if (item.tags.length > 0) content += `**Tags:** ${item.tags.join(', ')}\n`;
+                content += '\n';
+            });
+            
+            return content;
+        };
+
+        // File operations
+        const downloadFile = (filename, content) => {
+            const blob = new Blob([content], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        const downloadInbox = () => {
+            const content = generateInboxMarkdown();
+            downloadFile('notes.md', content);
+            inboxFile.hasChanges = false;
+            updateInboxInfo();
+            showFeedback('Downloaded notes.md');
+        };
+
+        const downloadArea = (areaName) => {
+            const content = generateAreaMarkdown(areaName);
+            downloadFile(`${areaName}.md`, content);
+            if (areaFiles[areaName]) {
+                areaFiles[areaName].hasChanges = false;
+                renderAreaFilesTable();
+            }
+            showFeedback(`Downloaded ${areaName}.md`);
+        };
+
+        // File upload handlers
+        document.getElementById('inboxFileInput').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                inboxFile = {
+                    name: file.name,
+                    lastModified: new Date(file.lastModified).toLocaleString(),
+                    hasChanges: false
+                };
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const parsed = parseInboxMarkdown(e.target.result);
+                    
+                    // Replace inbox items
+                    appState.items = [
+                        ...appState.items.filter(item => item.area !== 'inbox'),
+                        ...parsed.items
+                    ];
+                    
+                    updateInboxInfo();
+                    renderItems();
+                    updateAreaSelect();
+                    updateCategoryDatalist();
+                    showFeedback(`Imported ${parsed.items.length} items from inbox`);
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        document.getElementById('areaFilesInput').addEventListener('change', (event) => {
+            const files = Array.from(event.target.files);
+            
+            files.forEach(file => {
+                const areaName = file.name.replace('.md', '');
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const parsed = parseAreaMarkdown(e.target.result, areaName);
+                    
+                    // Store area file info
+                    areaFiles[areaName] = {
+                        title: parsed.title,
+                        description: parsed.description,
+                        lastModified: new Date(file.lastModified).toLocaleString(),
+                        hasChanges: false,
+                        originalContent: e.target.result
+                    };
+                    
+                    // Add to areas if not exists
+                    appState.areas[areaName] = {
+                        title: parsed.title,
+                        description: parsed.description
+                    };
+                    
+                    // Replace area items
+                    appState.items = [
+                        ...appState.items.filter(item => item.area !== areaName),
+                        ...parsed.items
+                    ];
+                    
+                    // Automatically switch to the uploaded area
+                    appState.selectedArea = areaName;
+                    appState.currentArea = areaName;
+                    appState.currentView = 'area';
+                    
+                    renderAreaFilesTable();
+                    updateAreaSelect();
+                    updateCategoryDatalist();
+                    renderItems();
+                    showFeedback(`Imported ${parsed.items.length} items from ${file.name} and switched to area`);
+                };
+                reader.readAsText(file);
+            });
+        });
+
+        // UI update functions
+        const updateInboxInfo = () => {
+            const inboxInfo = document.getElementById('inboxInfo');
+            const inboxChanges = document.getElementById('inboxChanges');
+            
+            if (inboxFile.name) {
+                const itemCount = appState.items.filter(i => i.area === 'inbox').length;
+                inboxInfo.textContent = `File: ${inboxFile.name}${inboxFile.hasChanges ? ' *' : ''} | Last Modified: ${inboxFile.lastModified} | Items: ${itemCount}`;
+                inboxInfo.classList.remove('hidden');
+                inboxChanges.textContent = inboxFile.hasChanges ? ' *' : '';
+            } else {
+                inboxInfo.classList.add('hidden');
+                inboxChanges.textContent = '';
+            }
+        };
+
+        const updateCategoryDatalist = () => {
+            const categories = appState.items
+                .map(item => item.category)
+                .filter(Boolean)
+                .filter((category, index, arr) => arr.indexOf(category) === index)
+                .sort();
+            
+            const mainDatalist = document.getElementById('categories');
+            const editDatalist = document.getElementById('editCategories');
+            
+            const options = categories.map(category => `<option value="${category}"></option>`).join('');
+            
+            mainDatalist.innerHTML = options;
+            editDatalist.innerHTML = options;
+        };
+
+        const updateTypeSelects = () => {
+            const itemTypeSelect = document.getElementById('itemType');
+            const editTypeSelect = document.getElementById('editType');
+            
+            if (itemTypeSelect) {
+                itemTypeSelect.innerHTML = '';
+                TYPE_KEYS.forEach(typeKey => {
+                    const option = document.createElement('option');
+                    option.value = typeKey;
+                    option.textContent = getTypeLabel(typeKey);
+                    itemTypeSelect.appendChild(option);
+                });
+                // Set default to first option
+                if (TYPE_KEYS.length > 0) {
+                    itemTypeSelect.value = TYPE_KEYS[0];
+                }
+            }
+            
+            if (editTypeSelect) {
+                editTypeSelect.innerHTML = '';
+                TYPE_KEYS.forEach(typeKey => {
+                    const option = document.createElement('option');
+                    option.value = typeKey;
+                    option.textContent = getTypeLabel(typeKey);
+                    editTypeSelect.appendChild(option);
+                });
+            }
+        };
+
+        const updateAreaSelect = () => {
+            const select = document.getElementById('areaSelect');
+            const editSelect = document.getElementById('editArea');
+            const targetSelect = document.getElementById('targetArea');
+            const editTargetSelect = document.getElementById('editTargetArea');
+            
+            // Update main area select
+            select.innerHTML = '';
+            const inboxCount = appState.items.filter(i => i.area === 'inbox').length;
+            select.innerHTML += `<option value="inbox">Inbox (${inboxCount})</option>`;
+            
+            Object.entries(appState.areas).forEach(([key, area]) => {
+                const count = appState.items.filter(i => i.area === key).length;
+                select.innerHTML += `<option value="${key}">${area.title} (${count})</option>`;
+            });
+            
+            select.value = appState.selectedArea;
+            
+            // Update edit area select
+            editSelect.innerHTML = '<option value="inbox">Inbox</option>';
+            Object.entries(appState.areas).forEach(([key, area]) => {
+                editSelect.innerHTML += `<option value="${key}">${area.title}</option>`;
+            });
+            
+            // Update target area selects
+            const targetOptions = Object.entries(appState.areas).map(([key, area]) => 
+                `<option value="${key}">${area.title}</option>`
+            ).join('');
+            
+            targetSelect.innerHTML = '<option value="">Select target area...</option>' + targetOptions;
+            editTargetSelect.innerHTML = '<option value="">Select target area...</option>' + targetOptions;
+        };
+
+        const renderAreaFilesTable = () => {
+            const table = document.getElementById('areaFilesTable');
+            const tbody = document.getElementById('areaFilesTableBody');
+            
+            if (Object.keys(areaFiles).length === 0) {
+                table.classList.add('hidden');
+                return;
+            }
+            
+            table.classList.remove('hidden');
+            tbody.innerHTML = '';
+            
+            Object.entries(areaFiles).forEach(([key, file]) => {
+                const itemCount = appState.items.filter(i => i.area === key).length;
+                const row = document.createElement('tr');
+                row.className = 'border-b';
+                row.innerHTML = `
+                    <td class="py-2">
+                        ${file.title}${file.hasChanges ? ' *' : ''}
+                        <div class="text-xs text-gray-500">${file.description}</div>
+                    </td>
+                    <td class="py-2">${itemCount}</td>
+                    <td class="py-2">
+                        <div class="flex items-center gap-1">
+                            <span>🕒</span>
+                            ${file.lastModified}
+                        </div>
+                    </td>
+                    <td class="py-2">
+                        <div class="flex gap-2">
+                            <button onclick="showFileContent('${key}.md', generateAreaMarkdown('${key}'))"
+                                    class="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                                <span>💾</span> View
+                            </button>
+                            <button onclick="confirmUnloadArea('${key}', '${file.title}', ${itemCount})"
+                                    class="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">
+                                <span>⊗</span> Unload
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        };
+
+        const renderItems = () => {
+            const itemsList = document.getElementById('itemsList');
+            const viewTitle = document.getElementById('viewTitle');
+            
+            let filteredItems;
+            let titleText;
+            
+            if (appState.currentView === 'search') {
+                const query = appState.searchQuery.toLowerCase();
+                filteredItems = appState.items.filter(item => 
+                    item.content.toLowerCase().includes(query) ||
+                    item.tags.some(tag => tag.toLowerCase().includes(query)) ||
+                    item.type.toLowerCase().includes(query) ||
+                    (item.category && item.category.toLowerCase().includes(query))
+                );
+                titleText = `Search Results (${filteredItems.length} items)`;
+            } else {
+                filteredItems = appState.items.filter(item => item.area === appState.currentArea);
+                if (appState.currentArea === 'inbox') {
+                    titleText = `Inbox Notes (${filteredItems.length} items)`;
+                } else {
+                    const areaTitle = appState.areas[appState.currentArea]?.title || appState.currentArea;
+                    titleText = `${areaTitle} (${filteredItems.length} items)`;
+                }
+            }
+            
+            viewTitle.textContent = titleText;
+            
+            if (filteredItems.length === 0) {
+                itemsList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        ${appState.currentView === 'search' ? 'No results found. Try a different search term.' : 'No items yet. Add your first item above!'}
+                    </div>
+                `;
+                return;
+            }
+            
+            itemsList.innerHTML = '';
+            filteredItems.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'border rounded p-4';
+                
+                const badges = [];
+                badges.push(`<span class="text-sm text-gray-500">${item.date}</span>`);
+                badges.push(`<span class="px-2 py-1 text-xs rounded ${getTypeColor(item.type)}">${getTypeLabel(item.type)}</span>`);
+                
+                if (item.category) {
+                    badges.push(`<span class="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">${item.category}</span>`);
+                }
+                
+                if (item.area !== 'inbox') {
+                    const areaTitle = appState.areas[item.area]?.title || item.area;
+                    badges.push(`<span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">${areaTitle}</span>`);
+                }
+                
+                if (item.targetArea && item.area === 'inbox') {
+                    badges.push(`<span class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">→ ${item.targetArea}</span>`);
+                }
+                
+                if (appState.currentView === 'search') {
+                    const areaTitle = item.area === 'inbox' ? 'Inbox' : appState.areas[item.area]?.title || item.area;
+                    badges.push(`<span class="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">${areaTitle}</span>`);
+                }
+                
+                const tagElements = item.tags.map(tag => 
+                    `<button onclick="searchByTag('${tag.replace(/'/g, "\\'")}')" 
+                             class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-blue-100 hover:text-blue-700 cursor-pointer transition-colors"
+                             title="Search for items tagged with '${tag.replace(/'/g, "\\'")}'">
+                        ${tag}
+                    </button>`
+                ).join('');
+                
+                itemDiv.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            ${badges.join('')}
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <button onclick="startEdit('${item.id}')" class="p-1 text-gray-500 hover:text-blue-500">
+                                <span>✏️</span>
+                            </button>
+                            <button onclick="deleteItem('${item.id}')" class="p-1 text-gray-500 hover:text-red-500">
+                                <span>🗑️</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <p class="text-gray-700 whitespace-pre-wrap">${item.content}</p>
+                    </div>
+                    
+                    ${item.tags.length > 0 ? `<div class="flex flex-wrap gap-1">${tagElements}</div>` : ''}
+                `;
+                
+                itemsList.appendChild(itemDiv);
+            });
+        };
+
+        // Core CRUD operations
+        const addItem = () => {
+            const content = document.getElementById('itemContent').value.trim();
+            if (!content) return;
+            
+            const type = document.getElementById('itemType').value;
+            const category = document.getElementById('itemCategory').value.trim();
+            const tagsInput = document.getElementById('itemTags').value.trim();
+            const targetArea = document.getElementById('targetArea').value;
+            
+            const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
+            
+            const item = {
+                id: generateId(),
+                date: formatDate(),
+                created: Date.now(),
+                lastUpdated: Date.now(),
+                area: appState.currentArea,
+                type: type,
+                content: content,
+                tags: tags,
+                category: category || '',
+                title: formatDate()
+            };
+            
+            if (targetArea) {
+                item.targetArea = targetArea;
+            }
+            
+            appState.items.unshift(item);
+            markFileChanged(appState.currentArea);
+            
+            // Clear and set template for next item
+            const template = NOTE_TEMPLATES[type] || '';
+            document.getElementById('itemContent').value = template;
+            document.getElementById('itemCategory').value = '';
+            document.getElementById('itemTags').value = '';
+            document.getElementById('targetArea').value = '';
+            
+            renderItems();
+            updateAreaSelect();
+            updateCategoryDatalist();
+            showFeedback('Note added successfully');
+        };
+
+        const startEdit = (id) => {
+            const item = appState.items.find(i => i.id === id);
+            if (!item) return;
+            
+            currentEditingId = id;
+            
+            document.getElementById('editType').value = item.type;
+            document.getElementById('editArea').value = item.area;
+            document.getElementById('editContent').value = item.content;
+            document.getElementById('editCategory').value = item.category || '';
+            document.getElementById('editTags').value = item.tags.join(', ');
+            
+            // Show/hide target area based on area
+            const editTargetAreaDiv = document.getElementById('editTargetAreaDiv');
+            const editTargetArea = document.getElementById('editTargetArea');
+            
+            if (item.area === 'inbox') {
+                editTargetAreaDiv.classList.remove('hidden');
+                editTargetArea.value = item.targetArea || '';
+            } else {
+                editTargetAreaDiv.classList.add('hidden');
+            }
+            
+            document.getElementById('editModal').classList.remove('hidden');
+        };
+
+        const saveEditedItem = () => {
+            if (!currentEditingId) return;
+            
+            const type = document.getElementById('editType').value;
+            const area = document.getElementById('editArea').value;
+            const content = document.getElementById('editContent').value;
+            const category = document.getElementById('editCategory').value.trim();
+            const tagsInput = document.getElementById('editTags').value.trim();
+            const targetArea = document.getElementById('editTargetArea').value;
+            
+            const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
+            
+            const itemIndex = appState.items.findIndex(i => i.id === currentEditingId);
+            if (itemIndex === -1) return;
+            
+            const oldArea = appState.items[itemIndex].area;
+            
+            appState.items[itemIndex] = {
+                ...appState.items[itemIndex],
+                type,
+                area,
+                content,
+                category,
+                tags,
+                lastUpdated: Date.now()
+            };
+            
+            if (area === 'inbox' && targetArea) {
+                appState.items[itemIndex].targetArea = targetArea;
+            } else {
+                delete appState.items[itemIndex].targetArea;
+            }
+            
+            // Mark both old and new areas as changed if area changed
+            markFileChanged(oldArea);
+            if (area !== oldArea) {
+                markFileChanged(area);
+            }
+            
+            closeEditModal();
+            renderItems();
+            updateAreaSelect();
+            updateCategoryDatalist();
+            showFeedback('Item updated successfully');
+        };
+
+        const deleteItem = (id) => {
+            const item = appState.items.find(i => i.id === id);
+            if (item) {
+                markFileChanged(item.area);
+                appState.items = appState.items.filter(item => item.id !== id);
+                renderItems();
+                updateAreaSelect();
+                updateCategoryDatalist();
+                showFeedback('Item deleted');
+            }
+        };
+
+        // Navigation functions
+        const updateSelectedArea = () => {
+            appState.selectedArea = document.getElementById('areaSelect').value;
+        };
+
+        const viewItems = () => {
+            appState.currentArea = appState.selectedArea;
+            appState.currentView = appState.selectedArea === 'inbox' ? 'inbox' : 'area';
+            
+            // Show/hide target area in add form
+            const targetAreaDiv = document.getElementById('targetAreaDiv');
+            const addItemBtn = document.getElementById('addItemBtn');
+            
+            if (appState.currentArea === 'inbox') {
+                targetAreaDiv.classList.remove('hidden');
+                addItemBtn.textContent = 'Add to Inbox';
+            } else {
+                targetAreaDiv.classList.add('hidden');
+                const areaTitle = appState.areas[appState.currentArea]?.title || appState.currentArea;
+                addItemBtn.textContent = `Add to ${areaTitle}`;
+            }
+            
+            // Show/hide add form for search view
+            const addForm = document.getElementById('addItemForm');
+            if (appState.currentView === 'search') {
+                addForm.classList.add('hidden');
+            } else {
+                addForm.classList.remove('hidden');
+            }
+            
+            renderItems();
+        };
+
+        const handleSearch = () => {
+            const query = document.getElementById('searchInput').value;
+            appState.searchQuery = query;
+            if (query) {
+                appState.currentView = 'search';
+                document.getElementById('addItemForm').classList.add('hidden');
+            } else {
+                appState.currentView = appState.currentArea === 'inbox' ? 'inbox' : 'area';
+                document.getElementById('addItemForm').classList.remove('hidden');
+            }
+            renderItems();
+        };
+
+        const performSearch = () => {
+            const query = document.getElementById('searchInput').value;
+            if (query) {
+                appState.searchQuery = query;
+                appState.currentView = 'search';
+                document.getElementById('addItemForm').classList.add('hidden');
+                renderItems();
+            }
+        };
+
+        // Search by tag function with navigation feedback
+        const searchByTag = (tag) => {
+            // Set search query and switch to search view
+            document.getElementById('searchInput').value = tag;
+            appState.searchQuery = tag;
+            appState.currentView = 'search';
+            document.getElementById('addItemForm').classList.add('hidden');
+            renderItems();
+            
+            // Visual feedback - highlight search box
+            searchHighlight = true;
+            const searchInput = document.getElementById('searchInput');
+            searchInput.classList.add('ring-2', 'ring-blue-500', 'ring-opacity-75');
+            setTimeout(() => {
+                searchHighlight = false;
+                searchInput.classList.remove('ring-2', 'ring-blue-500', 'ring-opacity-75');
+            }, 2000);
+            
+            // Show feedback message
+            showFeedback(`Searching for items tagged with "${tag}"`);
+            
+            // Scroll to navigation/search area
+            setTimeout(() => {
+                searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                searchInput.focus();
+            }, 150);
+        };
+
+        // Type change handler
+        const handleTypeChange = () => {
+            const type = document.getElementById('itemType').value;
+            const template = getTypeTemplate(type);
+            const currentContent = document.getElementById('itemContent').value;
+            
+            // Check if current content matches any template
+            const isCurrentTemplate = TYPE_KEYS.some(key => getTypeTemplate(key) === currentContent);
+            
+            if (!currentContent || isCurrentTemplate) {
+                document.getElementById('itemContent').value = template;
+            }
+        };
+
+        // Process inbox
+        const processInbox = () => {
+            const inboxItems = appState.items.filter(item => item.area === 'inbox');
+            let processed = 0;
+
+            inboxItems.forEach(item => {
+                if (item.targetArea && appState.areas[item.targetArea]) {
+                    item.area = item.targetArea;
+                    delete item.targetArea;
+                    item.lastUpdated = Date.now();
+                    markFileChanged(item.area);
+                    processed++;
+                }
+            });
+
+            if (processed > 0) {
+                markFileChanged('inbox');
+                renderItems();
+                updateAreaSelect();
+            }
+            
+            showFeedback(`Processed ${processed} items from inbox`);
+        };
+
+        // Area management
+        const createNewInbox = () => {
+            const inboxItems = appState.items.filter(i => i.area === 'inbox').length;
+            if (inboxItems > 0) {
+                showConfirmModal(
+                    'Confirm New Inbox',
+                    `You currently have ${inboxItems} items in your inbox. Creating a new notes.md will clear all current inbox content.`,
+                    'This action cannot be undone. Are you sure you want to continue?',
+                    () => {
+                        appState.items = appState.items.filter(item => item.area !== 'inbox');
+                        inboxFile = {
+                            name: 'notes.md',
+                            lastModified: new Date().toLocaleString(),
+                            hasChanges: false
+                        };
+                        updateInboxInfo();
+                        renderItems();
+                        updateAreaSelect();
+                        updateCategoryDatalist();
+                        showFeedback('Created new notes.md');
+                    }
+                );
+            } else {
+                inboxFile = {
+                    name: 'notes.md',
+                    lastModified: new Date().toLocaleString(),
+                    hasChanges: false
+                };
+                updateInboxInfo();
+                showFeedback('Created new notes.md');
+            }
+        };
+
+        const showNewAreaModal = () => {
+            document.getElementById('newAreaModal').classList.remove('hidden');
+            document.getElementById('newAreaTitle').value = '';
+            document.getElementById('newAreaDescription').value = '';
+        };
+
+        const closeNewAreaModal = () => {
+            document.getElementById('newAreaModal').classList.add('hidden');
+        };
+
+        const createNewArea = () => {
+            const title = document.getElementById('newAreaTitle').value.trim();
+            const description = document.getElementById('newAreaDescription').value.trim();
+            
+            if (!title) {
+                showFeedback('Please enter a title for the area');
+                return;
+            }
+            
+            const areaName = title.toLowerCase().replace(/\s+/g, '-');
+            const finalDescription = description || 'Brief description of this area.';
+            
+            appState.areas[areaName] = { title, description: finalDescription };
+            
+            areaFiles[areaName] = {
+                title,
+                description: finalDescription,
+                lastModified: new Date().toLocaleString(),
+                hasChanges: true,
+                originalContent: generateAreaMarkdown(areaName, title, finalDescription)
+            };
+            
+            closeNewAreaModal();
+            renderAreaFilesTable();
+            updateAreaSelect();
+            showFeedback(`Created new area: ${title}`);
+        };
+
+        const confirmUnloadArea = (areaName, title, itemCount) => {
+            showConfirmModal(
+                'Confirm Unload Area',
+                `You are about to unload the area "${title}" which contains ${itemCount} items.`,
+                'This will remove the area and all its items from memory. This action cannot be undone.',
+                () => {
+                    // Remove area from areas object
+                    delete appState.areas[areaName];
+                    
+                    // Remove all items from this area
+                    appState.items = appState.items.filter(item => item.area !== areaName);
+                    
+                    // Reset view if currently viewing this area
+                    if (appState.currentArea === areaName) {
+                        appState.currentArea = 'inbox';
+                        appState.currentView = 'inbox';
+                    }
+                    if (appState.selectedArea === areaName) {
+                        appState.selectedArea = 'inbox';
+                    }
+                    
+                    // Remove from area files
+                    delete areaFiles[areaName];
+                    
+                    renderAreaFilesTable();
+                    updateAreaSelect();
+                    updateCategoryDatalist();
+                    renderItems();
+                    showFeedback(`Unloaded area: ${title}`);
+                }
+            );
+        };
+
+        // Modal functions
+        const closeEditModal = () => {
+            document.getElementById('editModal').classList.add('hidden');
+            currentEditingId = null;
+        };
+
+        const showFileContent = (title, content) => {
+            fileModalContent = content;
+            document.getElementById('fileModalTitle').textContent = title;
+            document.getElementById('fileModalContent').textContent = content;
+            document.getElementById('fileModal').classList.remove('hidden');
+        };
+
+        const closeFileModal = () => {
+            document.getElementById('fileModal').classList.add('hidden');
+        };
+
+        const copyFileContent = () => {
+            navigator.clipboard.writeText(fileModalContent).then(() => {
+                const btn = document.getElementById('copyBtnText');
+                btn.textContent = 'Copied!';
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                }, 2000);
+            });
+        };
+
+        const showConfirmModal = (title, message, warning, callback) => {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            
+            const warningEl = document.getElementById('confirmWarning');
+            if (warning) {
+                warningEl.textContent = warning;
+                warningEl.classList.remove('hidden');
+            } else {
+                warningEl.classList.add('hidden');
+            }
+            
+            confirmCallback = callback;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        };
+
+        const confirmAction = () => {
+            if (confirmCallback) {
+                confirmCallback();
+                confirmCallback = null;
+            }
+            closeConfirmModal();
+        };
+
+        const closeConfirmModal = () => {
+            document.getElementById('confirmModal').classList.add('hidden');
+            confirmCallback = null;
+        };
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            updateTypeSelects();
+            updateAreaSelect();
+            updateCategoryDatalist();
+            renderItems();
+            updateInboxInfo();
+            
+            // Set initial template
+            handleTypeChange();
+        });
+    </script>
+</body>
+</html>
